@@ -2,6 +2,9 @@
 
 一个模仿券商 App「分时预览」列表的国内期货看盘页面：左侧品种与代码，中间当前交易日 1 分钟分时走势，右侧最新价与涨跌幅（红涨绿跌）。
 
+<img width="889" height="811" alt="image" src="https://github.com/user-attachments/assets/660c0fa6-df05-468a-a952-7bad8f09f95c" />
+
+
 ## 技术方案
 
 ### 架构
