@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#121313" />
+    <title>国内期货看盘</title>
+    <style>
+      :root { color-scheme: dark; --bg:#121313; --panel:#1a1b1b; --muted:#8b8e91; --line:#45484a; --up:#d2172a; --down:#0a8a43; --text:#f1f2f2; --hover:#26282a; }
+      * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft YaHei",system-ui,sans-serif; }
+      .shell { max-width:920px; margin:0 auto; padding:22px 24px 36px; }
+      header { display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid #2c2e2f; padding:0 0 17px; margin-bottom:7px; gap:16px; }
+      h1 { font-size:25px; font-weight:500; margin:0; letter-spacing:.04em; } .sub { color:var(--muted); font-size:13px; margin-top:5px; }
+      .rightbox { text-align:right; }.status { color:var(--muted); font-size:13px; line-height:1.7; }.dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#8b8e91; margin-right:6px; }.dot.live { background:#08a84f; }
+      .manage { margin:0 0 10px; padding:6px 14px; border-radius:4px; border:1px solid #333638; background:#202223; color:var(--text); font-size:13px; cursor:pointer; }
+      .manage:hover { background:#2a2c2e; }
+      .heading,.row { display:grid; grid-template-columns:minmax(140px,1.1fr) minmax(190px,2.1fr) minmax(110px,.9fr); gap:20px; align-items:center; }.heading { color:#a9acad; font-size:15px; padding:9px 2px; }
+      .row { min-height:74px; border-top:1px dashed var(--line); padding:7px 2px; }.name { font-size:25px; line-height:1.2; font-weight:500; }.code { color:var(--muted); font-size:15px; margin-top:5px; }
+      .spark { width:100%; height:54px; display:block; }.pricebox { text-align:right; }.last { min-height:39px; display:inline-flex; min-width:108px; justify-content:center; align-items:center; padding:4px 12px; border-radius:3px; color:white; font-size:25px; font-weight:600; font-variant-numeric:tabular-nums; }.last.up { background:#bc1022; }.last.down { background:#08783a; }.last.neutral { background:#404345; }.change { margin-top:4px; font-size:17px; font-variant-numeric:tabular-nums; }.change.up { color:#e02c3d; }.change.down { color:#09a653; }.change.neutral { color:var(--muted); }.unavailable { color:var(--muted); font-size:14px; }.empty { color:var(--muted); font-size:15px; padding:26px 2px; }.notice { margin:18px 2px 0; color:var(--muted); font-size:12px; line-height:1.65; }
+
+      /* 自选管理面板 */
+      .overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:18px; z-index:30; }
+      .panel { width:min(560px,100%); max-height:84vh; display:flex; flex-direction:column; background:#151717; border:1px solid #2c2e2f; border-radius:8px; overflow:hidden; }
+      .phead { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #2c2e2f; }
+      .phead h2 { font-size:17px; font-weight:500; margin:0; }.close { border:none; background:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; }
+      .pbody { padding:14px 16px; overflow:auto; }
+      .sec { color:#a9acad; font-size:13px; margin:0 0 8px; }
+      .search { width:100%; padding:10px 12px; border-radius:5px; border:1px solid #333638; background:#0e1010; color:var(--text); font-size:14px; margin-bottom:14px; outline:none; }
+      .search:focus { border-color:#4a4d4f; }
+      .itemset { display:flex; flex-direction:column; gap:6px; margin-bottom:18px; }
+      .mrow,.crow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px; border-radius:5px; background:#1c1e1f; }
+      .mrow { border:1px solid #26282a; }.mname { font-size:16px; }.mcode { color:var(--muted); font-size:12px; margin-top:3px; }
+      .add,.remove { flex:none; border:none; border-radius:4px; padding:6px 14px; font-size:13px; cursor:pointer; }
+      .add { background:#b6162a; color:#fff; }.add:hover { background:#cf1b32; }
+      .add.disabled { background:#2a2c2e; color:#6a6d70; cursor:default; }
+      .remove { background:#2a2c2e; color:#d0d3d5; }.remove:hover { background:#3a3d3f; }
+      .hint { color:var(--muted); font-size:12px; }
+
+      @media (max-width:600px) { .shell { padding:16px 13px 28px; } h1{font-size:21px}.heading,.row{grid-template-columns:minmax(104px,1fr) minmax(100px,1.15fr) minmax(84px,.8fr);gap:10px}.heading{font-size:12px}.name{font-size:18px}.code{font-size:12px}.last{min-width:78px;font-size:18px}.change{font-size:14px}.spark{height:44px}.row{min-height:62px} }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div><h1>国内期货 · 分时预览</h1><div class="sub">公开行情 · 仅供学习参考</div></div>
+        <div class="rightbox">
+          <button id="manage" class="manage" type="button">编辑自选</button>
+          <div class="status"><div><i class="dot" id="dot"></i><span id="status">正在连接行情</span></div><div id="updated">--</div></div>
+        </div>
+      </header>
+      <section class="heading" aria-label="行情表头"><span>品种</span><span>分时预览</span><span style="text-align:right">最新价</span></section>
+      <section id="board" aria-live="polite"></section>
+      <p class="notice">数据来自新浪财经公开行情，页面每 60 秒自动刷新；自选保存在本机浏览器，点击右上角「编辑自选」可增删品种。主连仅作展示，不代表可交易合约。非交易时段或网络异常时，价格会标记为不可用。</p>
+    </main>
+
+    <div id="manager" class="overlay" hidden>
+      <div class="panel" role="dialog" aria-label="编辑自选">
+        <div class="phead"><h2>编辑自选</h2><button id="close" class="close" type="button" aria-label="关闭">×</button></div>
+        <div class="pbody">
+          <p class="sec">当前自选（点击移除）</p>
+          <div id="addList" class="itemset"></div>
+          <input id="search" class="search" type="text" placeholder="搜索品种，例如：沪铜 / CU0 / 铁矿石" autocomplete="off" />
+          <p class="sec">可添加品种</p>
+          <div id="picker" class="itemset"></div>
+          <p class="hint">自选保存在本机浏览器（localStorage），不会上传。搜索支持品种名、代码。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const board = document.getElementById('board');
+      const status = document.getElementById('status');
+      const updated = document.getElementById('updated');
+      const dot = document.getElementById('dot');
+      const manager = document.getElementById('manager');
+      const manageBtn = document.getElementById('manage');
+      const closeBtn = document.getElementById('close');
+      const addList = document.getElementById('addList');
+      const picker = document.getElementById('picker');
+      const search = document.getElementById('search');
+
+      const DEFAULT = [
+        { id: "AG0", name: "沪银主连", code: "ag9999" },
+        { id: "SP0", name: "纸浆主连", code: "sp9999" },
+        { id: "CJ0", name: "红枣主连", code: "CJ9999" },
+        { id: "V0", name: "PVC主连", code: "v9999" },
+        { id: "RB0", name: "螺纹钢主连", code: "rb9999" },
+        { id: "M0", name: "豆粕主连", code: "m9999" },
+        { id: "RM0", name: "菜粕主连", code: "RM9999" },
+        { id: "FG0", name: "玻璃主连", code: "FG9999" },
+        { id: "SA0", name: "纯碱主连", code: "SA9999" },
+        { id: "UR0", name: "尿素主连", code: "UR9999" }
+      ];
+      const KEY = "futures.watchlist.v1";
+      let catalog = [];
+      let catalogLoading = false;
+
+      function loadWatchlist() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list) && list.length) {
+              return list.map((i) => ({ id: String(i.id), name: String(i.name || i.id), code: String(i.code || i.id) }));
+            }
+          }
+        } catch (e) {}
+        return DEFAULT.map((i) => ({ ...i }));
+      }
+      function saveWatchlist() { try { localStorage.setItem(KEY, JSON.stringify(watchlist)); } catch (e) {} }
+      let watchlist = loadWatchlist();
+
+      function escapeHTML(value) {
+        return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+      }
+
+      // 绘制分时预览：昨天结算价画一条虚线基准线，折线按当日涨跌着色
+      function spark(series, previous, color) {
+        const W = 200, H = 54, pad = 3;
+        const empty = `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${H/2}" y2="${H/2}" stroke="#45484a" stroke-dasharray="4 5"/></svg>`;
+        if (!Array.isArray(series) || series.length < 2) return empty;
+        let min = Math.min(...series), max = Math.max(...series);
+        if (previous != null) { min = Math.min(min, previous); max = Math.max(max, previous); }
+        const range = (max - min) || 1;
+        const y = (v) => H - pad - ((v - min) / range) * (H - pad * 2);
+        const x = (i) => (i / (series.length - 1)) * W;
+        const points = series.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
+        const baselineY = previous != null ? y(previous) : H / 2;
+        return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="分时走势">
+          <line x1="0" x2="${W}" y1="${baselineY.toFixed(1)}" y2="${baselineY.toFixed(1)}" stroke="#45484a" stroke-dasharray="4 5"/>
+          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        </svg>`;
+      }
+
+      function render(quotes) {
+        if (!quotes.length) {
+          board.innerHTML = `<div class="empty">还没有自选品种，点右上角「编辑自选」添加。</div>`;
+          return;
+        }
+        board.innerHTML = quotes.map(q => {
+          const left = `<div><div class="name">${escapeHTML(q.name)}</div><div class="code">${escapeHTML(q.code)}</div></div>`;
+          if (!q.available || q.last == null) {
+            return `<article class="row">${left}<div>${spark([], q.previous, '#8b8e91')}</div><div class="pricebox unavailable">暂无行情</div></article>`;
+          }
+          const direction = q.changePct >= 0 ? 'up' : 'down';
+          const color = direction === 'up' ? '#e12a3b' : '#00a650';
+          const number = new Intl.NumberFormat('zh-CN', {minimumFractionDigits: q.decimals, maximumFractionDigits: q.decimals}).format(q.last);
+          const sign = q.changePct >= 0 ? '+' : '';
+          const right = `<div class="pricebox"><div class="last ${direction}">${number}</div><div class="change ${direction}">${sign}${q.changePct.toFixed(2)}%</div></div>`;
+          return `<article class="row">${left}<div>${spark(q.series, q.previous, color)}</div>${right}</article>`;
+        }).join('');
+      }
+
+      async function refresh() {
+        if (!watchlist.length) {
+          render([]);
+          status.textContent = '暂无自选品种';
+          updated.textContent = '--';
+          dot.className = 'dot';
+          return;
+        }
+        try {
+          const ids = watchlist.map(w => w.id).join(',');
+          const res = await fetch('/api/quotes?ids=' + encodeURIComponent(ids), {cache: 'no-store'});
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          render(data.quotes);
+          const date = new Date(data.refreshedAt);
+          status.textContent = `${data.source} · ${data.refreshSeconds} 秒刷新`;
+          updated.textContent = `更新于 ${date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit'})}`;
+          dot.className = 'dot live';
+        } catch (error) {
+          status.textContent = '行情暂时不可用';
+          updated.textContent = '将在一分钟后重试';
+          dot.className = 'dot';
+        }
+      }
+
+      // ---- 自选管理 ----
+      function renderManager() {
+        addList.innerHTML = watchlist.map((w, i) =>
+          `<div class="mrow"><div><div class="mname">${escapeHTML(w.name)}</div><div class="mcode">${escapeHTML(w.code)}</div></div><button class="remove" type="button" data-i="${i}">移除</button></div>`
+        ).join('') || '<div class="hint">暂无自选。</div>';
+        renderPicker();
+      }
+      function renderPicker() {
+        const q = search.value.trim().toLowerCase();
+        const list = catalog.filter(c => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
+        picker.innerHTML = list.map(c => {
+          const added = watchlist.some(w => w.id === c.id);
+          return `<div class="crow"><div><div class="mname">${escapeHTML(c.name)}</div><div class="mcode">${escapeHTML(c.code)} · ${escapeHTML(c.exchange || '')}</div></div><button class="add ${added ? 'disabled' : ''}" type="button" data-id="${c.id}" ${added ? 'disabled' : ''}>${added ? '已添加' : '添加'}</button></div>`;
+        }).join('') || '<div class="hint">没有匹配的品种。</div>';
+      }
+      function openManager() { renderManager(); manager.hidden = false; loadCatalog(); }
+      function closeManager() { manager.hidden = true; }
+      async function loadCatalog() {
+        if (catalog.length || catalogLoading) return;
+        catalogLoading = true;
+        try {
+          const res = await fetch('/api/catalog', {cache: 'no-store'});
+          if (res.ok) { const data = await res.json(); catalog = data.catalog || []; }
+        } catch (e) {}
+        catalogLoading = false;
+        renderPicker();
+      }
+
+      manageBtn.addEventListener('click', openManager);
+      closeBtn.addEventListener('click', closeManager);
+      manager.addEventListener('click', (e) => { if (e.target === manager) closeManager(); });
+      search.addEventListener('input', renderPicker);
+
+      addList.addEventListener('click', (e) => {
+        const btn = e.target.closest('button.remove');
+        if (!btn) return;
+        watchlist.splice(Number(btn.dataset.i), 1);
+        saveWatchlist(); renderManager(); refresh();
+      });
+      picker.addEventListener('click', (e) => {
+        const btn = e.target.closest('button.add');
+        if (!btn || btn.disabled) return;
+        const c = catalog.find(x => x.id === btn.dataset.id);
+        if (!c || watchlist.some(w => w.id === c.id)) return;
+        watchlist.push({ id: c.id, name: c.name, code: c.code });
+        saveWatchlist(); renderManager(); refresh();
+      });
+
+      refresh();
+      setInterval(refresh, 60000);
+    </script>
+  </body>
+</html>
