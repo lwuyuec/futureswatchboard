@@ -20,6 +20,7 @@
 
       /* 自选管理面板 */
       .overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:18px; z-index:30; }
+      .overlay[hidden] { display:none; }
       .panel { width:min(560px,100%); max-height:84vh; display:flex; flex-direction:column; background:#151717; border:1px solid #2c2e2f; border-radius:8px; overflow:hidden; }
       .phead { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #2c2e2f; }
       .phead h2 { font-size:17px; font-weight:500; margin:0; }.close { border:none; background:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; }
@@ -94,6 +95,7 @@
       const KEY = "futures.watchlist.v1";
       let catalog = [];
       let catalogLoading = false;
+      let catalogFailed = false;
 
       function loadWatchlist() {
         try {
@@ -184,6 +186,10 @@
         renderPicker();
       }
       function renderPicker() {
+        if (!catalog.length) {
+          picker.innerHTML = `<div class="hint">${catalogFailed ? '无法加载品种目录，请确认已部署最新版本（应包含 api/catalog.js）。' : '正在加载可添加品种…'}</div>`;
+          return;
+        }
         const q = search.value.trim().toLowerCase();
         const list = catalog.filter(c => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
         picker.innerHTML = list.map(c => {
@@ -194,12 +200,13 @@
       function openManager() { renderManager(); manager.hidden = false; loadCatalog(); }
       function closeManager() { manager.hidden = true; }
       async function loadCatalog() {
-        if (catalog.length || catalogLoading) return;
+        if (catalog.length || catalogLoading || catalogFailed) return;
         catalogLoading = true;
         try {
           const res = await fetch('/api/catalog', {cache: 'no-store'});
           if (res.ok) { const data = await res.json(); catalog = data.catalog || []; }
-        } catch (e) {}
+          else { catalogFailed = true; }
+        } catch (e) { catalogFailed = true; }
         catalogLoading = false;
         renderPicker();
       }
