@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#121313" />
+    <title>国内期货看盘</title>
+    <style>
+      :root { color-scheme: dark; --bg:#121313; --panel:#1a1b1b; --muted:#8b8e91; --line:#45484a; --up:#d2172a; --down:#0a8a43; --text:#f1f2f2; }
+      * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft YaHei",system-ui,sans-serif; }
+      .shell { max-width:920px; margin:0 auto; padding:22px 24px 36px; }
+      header { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #2c2e2f; padding:0 0 17px; margin-bottom:7px; }
+      h1 { font-size:25px; font-weight:500; margin:0; letter-spacing:.04em; } .sub { color:var(--muted); font-size:13px; margin-top:5px; }
+      .status { text-align:right; color:var(--muted); font-size:13px; line-height:1.7; }.dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#8b8e91; margin-right:6px; }.dot.live { background:#08a84f; }
+      .heading,.row { display:grid; grid-template-columns:minmax(140px,1.1fr) minmax(190px,2.1fr) minmax(110px,.9fr); gap:20px; align-items:center; }.heading { color:#a9acad; font-size:15px; padding:9px 2px; }
+      .row { min-height:74px; border-top:1px dashed var(--line); padding:7px 2px; }.name { font-size:25px; line-height:1.2; font-weight:500; }.code { color:var(--muted); font-size:15px; margin-top:5px; }
+      .spark { width:100%; height:54px; display:block; }.pricebox { text-align:right; }.last { min-height:39px; display:inline-flex; min-width:108px; justify-content:center; align-items:center; padding:4px 12px; border-radius:3px; color:white; font-size:25px; font-weight:600; font-variant-numeric:tabular-nums; }.last.up { background:#bc1022; }.last.down { background:#08783a; }.last.neutral { background:#404345; }.change { margin-top:4px; font-size:17px; font-variant-numeric:tabular-nums; }.change.up { color:#e02c3d; }.change.down { color:#09a653; }.change.neutral { color:var(--muted); }.unavailable { color:var(--muted); font-size:14px; }.notice { margin:18px 2px 0; color:var(--muted); font-size:12px; line-height:1.65; }
+      @media (max-width:600px) { .shell { padding:16px 13px 28px; } h1{font-size:21px}.heading,.row{grid-template-columns:minmax(104px,1fr) minmax(100px,1.15fr) minmax(84px,.8fr);gap:10px}.heading{font-size:12px}.name{font-size:18px}.code{font-size:12px}.last{min-width:78px;font-size:18px}.change{font-size:14px}.spark{height:44px}.row{min-height:62px} }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header><div><h1>国内期货 · 分时预览</h1><div class="sub">公开行情 · 仅供学习参考</div></div><div class="status"><div><i class="dot" id="dot"></i><span id="status">正在连接行情</span></div><div id="updated">--</div></div></header>
+      <section class="heading" aria-label="行情表头"><span>品种</span><span>分时预览</span><span style="text-align:right">最新价</span></section>
+      <section id="board" aria-live="polite"></section>
+      <p class="notice">数据来自新浪财经公开行情，页面每 60 秒自动刷新；主连仅作展示，不代表可交易合约。分时预览为当前交易日 1 分钟走势，虚线为昨结算基准线。遇到非交易时段、上游变更或网络异常时，价格会标记为不可用。</p>
+    </main>
+    <script>
+      const board = document.getElementById('board');
+      const status = document.getElementById('status');
+      const updated = document.getElementById('updated');
+      const dot = document.getElementById('dot');
+
+      function escapeHTML(value) {
+        return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+      }
+
+      // 绘制分时预览：昨天结算价画一条虚线基准线，折线按当日涨跌着色
+      function spark(series, previous, color) {
+        const W = 200, H = 54, pad = 3;
+        const empty = `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${H/2}" y2="${H/2}" stroke="#45484a" stroke-dasharray="4 5"/></svg>`;
+        if (!Array.isArray(series) || series.length < 2) return empty;
+        let min = Math.min(...series), max = Math.max(...series);
+        if (previous != null) { min = Math.min(min, previous); max = Math.max(max, previous); }
+        const range = (max - min) || 1;
+        const y = (v) => H - pad - ((v - min) / range) * (H - pad * 2);
+        const x = (i) => (i / (series.length - 1)) * W;
+        const points = series.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
+        const baselineY = previous != null ? y(previous) : H / 2;
+        return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="分时走势">
+          <line x1="0" x2="${W}" y1="${baselineY.toFixed(1)}" y2="${baselineY.toFixed(1)}" stroke="#45484a" stroke-dasharray="4 5"/>
+          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        </svg>`;
+      }
+
+      function render(quotes) {
+        board.innerHTML = quotes.map(q => {
+          const left = `<div><div class="name">${escapeHTML(q.name)}</div><div class="code">${escapeHTML(q.code)}</div></div>`;
+          if (!q.available || q.last == null) {
+            return `<article class="row">${left}<div>${spark([], q.previous, '#8b8e91')}</div><div class="pricebox unavailable">暂无行情</div></article>`;
+          }
+          const direction = q.changePct >= 0 ? 'up' : 'down';
+          const color = direction === 'up' ? '#e12a3b' : '#00a650';
+          const number = new Intl.NumberFormat('zh-CN', {minimumFractionDigits: q.decimals, maximumFractionDigits: q.decimals}).format(q.last);
+          const sign = q.changePct >= 0 ? '+' : '';
+          const right = `<div class="pricebox"><div class="last ${direction}">${number}</div><div class="change ${direction}">${sign}${q.changePct.toFixed(2)}%</div></div>`;
+          return `<article class="row">${left}<div>${spark(q.series, q.previous, color)}</div>${right}</article>`;
+        }).join('');
+      }
+
+      async function refresh() {
+        try {
+          const res = await fetch('/api/quotes', {cache: 'no-store'});
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          render(data.quotes);
+          const date = new Date(data.refreshedAt);
+          status.textContent = `${data.source} · ${data.refreshSeconds} 秒刷新`;
+          updated.textContent = `更新于 ${date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit'})}`;
+          dot.className = 'dot live';
+        } catch (error) {
+          status.textContent = '行情暂时不可用';
+          updated.textContent = '将在一分钟后重试';
+          dot.className = 'dot';
+        }
+      }
+      refresh();
+      setInterval(refresh, 60000);
+    </script>
+  </body>
+</html>
